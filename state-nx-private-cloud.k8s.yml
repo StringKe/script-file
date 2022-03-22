@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  namespace: nx-private-cloud
+  labels:
+    version: v1
+    app: nx-private-cloud
+  name: nx-private-cloud-v1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      version: v1
+      app: nx-private-cloud
+  template:
+    metadata:
+      labels:
+        version: v1
+        app: nx-private-cloud
+      annotations:
+        logging.kubesphere.io/logsidecar-config: '{}'
+    spec:
+      containers:
+        - name: container-cglzts
+          imagePullPolicy: Always
+          image: nxprivatecloud/nxcloud
+          ports:
+            - name: http-8081
+              protocol: TCP
+              containerPort: 8081
+              servicePort: 8081
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: 8081
+            initialDelaySeconds: 90
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 10
+          readinessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: 8081
+            initialDelaySeconds: 60
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 10
+          startupProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: 8081
+            initialDelaySeconds: 30
+            timeoutSeconds: 1
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 10
+          volumeMounts:
+            - name: host-time
+              mountPath: /etc/localtime
+              readOnly: false
+            - readOnly: false
+              mountPath: /data
+              name: nx-cloud-data
+          env:
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                configMapKeyRef:
+                  name: nx-private-cloud-dict
+                  key: ADMIN_PASSWORD
+            - name: NX_CLOUD_APP_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: nx-private-cloud-dict
+                  key: NX_CLOUD_APP_URL
+      serviceAccount: default
+      initContainers: []
+      volumes:
+        - hostPath:
+            path: /etc/localtime
+            type: ''
+          name: host-time
+      imagePullSecrets: null
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+  serviceName: nx-private-cloud
+  volumeClaimTemplates:
+    - spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 40Gi
+        storageClassName: local
+      metadata:
+        name: nx-cloud-data
+        namespace: nx-private-cloud
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: nx-private-cloud
+  labels:
+    version: v1
+    app: nx-private-cloud
+  annotations:
+    kubesphere.io/serviceType: statefulservice
+    kubesphere.io/alias-name: Nx Private Cloud
+    kubesphere.io/description: 私有 Nx Cloud 服务
+  name: nx-private-cloud
+spec:
+  sessionAffinity: None
+  selector:
+    app: nx-private-cloud
+  ports:
+    - name: http-8081
+      protocol: TCP
+      port: 8081
+      targetPort: 8081
+  clusterIP: None
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 86400
